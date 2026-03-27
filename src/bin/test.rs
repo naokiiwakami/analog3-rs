@@ -30,7 +30,7 @@ mod tests {
     use defmt::{assert, info};
     // use defmt::*;
     use crate::async_task;
-    use eg_test::analog3::storage::Storage;
+    use analog3::storage::Storage;
     use embassy_executor::{Executor, Spawner};
     use embassy_futures::block_on;
     use embassy_stm32::{Peripherals, bind_interrupts, interrupt};
@@ -59,6 +59,9 @@ mod tests {
         let mut flash = Flash::new(p.FLASH, FlashIrqs);
 
         let result = block_on(Storage::init(flash));
+        let Ok(mut _storage) = result else {
+            panic!("failed to initialize");
+        };
     }
 
     /*

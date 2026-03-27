@@ -4,10 +4,7 @@ use embassy_stm32::flash::{Error, FLASH_SIZE, Flash, WRITE_SIZE};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel, signal::Signal};
 use heapless::{String, Vec};
 
-use crate::analog3::{
-    definitions::{A3_MAX_PROP_DATA_SIZE, MAX_PROP_VECTOR_LENGTH},
-    {Value, ValueType},
-};
+use super::definitions::{A3_MAX_PROP_DATA_SIZE, MAX_PROP_VECTOR_LENGTH, Value, ValueType};
 
 pub const PAGE_SIZE: usize = 0x800;
 const NUM_ROWS: usize = PAGE_SIZE / WRITE_SIZE - 1;

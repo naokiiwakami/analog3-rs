@@ -2,7 +2,7 @@ use core::cmp::min;
 use embassy_stm32::can::frame::FdFrame;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, signal::Signal};
 
-use crate::analog3::{A3_MAX_PROP_DATA_SIZE, Value};
+use super::{A3_MAX_PROP_DATA_SIZE, Value};
 
 #[non_exhaustive]
 #[derive(Clone)]

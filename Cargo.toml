@@ -1,6 +1,6 @@
 [package]
 edition = "2024"
-name = "eg-test"
+name = "analog3"
 version = "0.1.0"
 license = "MIT"
 publish = false
@@ -63,11 +63,11 @@ path = "src/bin/test.rs"
 harness = false
 required-features = ["test"]
 
-[[bin]]
-name = "eg-test"
-path = "src/main.rs"
-test = false
-bench = false
+# [[bin]]
+# name = "analog3"
+# path = "src/main.rs"
+# test = false
+# bench = false
 
 [lib]
 path = "src/lib.rs"
