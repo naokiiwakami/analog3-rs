@@ -1,0 +1,75 @@
+[package]
+edition = "2024"
+name = "eg-test"
+version = "0.1.0"
+license = "MIT"
+publish = false
+
+[dependencies]
+# Change stm32c031c6 to your chip name, if necessary.
+embassy-stm32 = { git = "https://github.com/naokiiwakami/embassy.git", tag = "embassy-stm32-v0.6.0-canfd-tdc", features = [
+  "defmt",
+  "time-driver-any",
+  "stm32g0b1ce",
+  "memory-x",
+  "unstable-pac",
+  "exti",
+  "chrono",
+] }
+embassy-sync = { version = "0.8.0", features = ["defmt"] }
+embassy-executor = { version = "0.10.0", features = [
+  "platform-cortex-m",
+  "executor-thread",
+  "defmt",
+] }
+embassy-time = { version = "0.5.1", features = [
+  "defmt",
+  "defmt-timestamp-uptime",
+  "tick-hz-32_768",
+] }
+embassy-futures = "0.1.2"
+defmt = "1.0.1"
+defmt-rtt = "1.0.0"
+
+cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7.0"
+embedded-hal = "0.2.6"
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+heapless = { version = "0.9", default-features = false }
+chrono = { version = "^0.4", default-features = false }
+embedded-can = "0.4.1"
+defmt-test = "0.4.0"
+embedded-storage = "0.3.1"
+static_cell = "2.1.1"
+portable-atomic = { version = "1.13.1", features = ["critical-section"] }
+
+[profile.release]
+debug = 2
+opt-level = "s"
+lto = true
+
+[package.metadata.embassy]
+build = [{ target = "thumbv6m-none-eabi", artifact-dir = "out" }]
+
+[features]
+default = []
+# optionally enables bit rate switching in CAN tx
+bit-rate-switching = []
+test = []
+
+[[bin]]
+name = "test"
+path = "src/bin/test.rs"
+harness = false
+required-features = ["test"]
+
+[[bin]]
+name = "eg-test"
+path = "src/main.rs"
+test = false
+bench = false
+
+[lib]
+path = "src/lib.rs"
+test = false
+bench = false
