@@ -40,8 +40,6 @@ chrono = { version = "^0.4", default-features = false }
 embedded-can = "0.4.1"
 defmt-test = "0.4.0"
 embedded-storage = "0.3.1"
-static_cell = "2.1.1"
-portable-atomic = { version = "1.13.1", features = ["critical-section"] }
 
 [profile.release]
 debug = 2
@@ -58,7 +56,7 @@ bit-rate-switching = []
 test = []
 
 [[bin]]
-name = "test"
+name = "hw-test"
 path = "src/bin/test.rs"
 harness = false
 required-features = ["test"]

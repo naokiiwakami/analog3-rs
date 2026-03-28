@@ -1,54 +1,139 @@
 #![no_std]
 #![no_main]
 
-use defmt::{assert, info};
+use analog3::{
+    definitions::Value,
+    storage::{PAGE_0, PAGE_1, PAGE_SIZE, Storage},
+};
+use defmt::assert_eq;
 use defmt_rtt as _;
 use defmt_test as _;
-use embassy_executor::{Executor, Spawner, task};
+use embassy_futures::block_on;
 use embassy_stm32 as _;
 use embassy_stm32::flash::Flash;
-use embedded_storage::nor_flash::ReadNorFlash;
 use panic_probe as _;
 
-#[embassy_executor::task]
-async fn async_task(mut flash: Flash<'static, embassy_stm32::flash::Blocking>) {
-    let mut buf = [0u8; 16];
+/// Factory reset flash and create storage
+fn init<'a>(flash: &'a mut Flash<'static>) -> Storage<'a> {
+    // info!(
+    //     "erasing page 0 ({:#x} - {:#x})",
+    //     PAGE_0,
+    //     PAGE_0 + PAGE_SIZE as u32
+    // );
+    block_on(flash.erase(PAGE_0, PAGE_0 + PAGE_SIZE as u32)).unwrap();
+    // info!(
+    //     "erasing page 1 ({:#x} - {:#x})",
+    //     PAGE_1,
+    //     PAGE_1 + PAGE_SIZE as u32
+    // );
+    block_on(flash.erase(PAGE_1, PAGE_1 + PAGE_SIZE as u32)).unwrap();
 
-    flash.read(0, &mut buf).unwrap();
-
-    info!("Async flash: {:x}", buf);
-
-    // cortex_m::asm::bkpt(); // end test
+    let result = block_on(Storage::init(flash));
+    let Ok(storage) = result else {
+        panic!("failed to initialize");
+    };
+    storage
 }
 
-async fn read_something() -> u32 {
-    42
+/// Build storage without factory reset the flash.
+fn build_storage<'a>(flash: &'a mut Flash<'static>) -> Storage<'a> {
+    let result = block_on(Storage::init(flash));
+    let Ok(storage) = result else {
+        panic!("failed to initialize");
+    };
+    storage
 }
 
+fn u8_read_write<'a>(flash: &'a mut Flash<'static>) {
+    let address0 = 0x30;
+
+    {
+        let mut storage = init(flash);
+
+        // The value is unset after the factory reset
+        let Ok(value) = storage.load_u8(address0) else {
+            panic!("failed to load");
+        };
+        assert_eq!(value, u8::MAX);
+
+        // Save the initial data
+        block_on(storage.save(address0, Value::U8(0xf1))).unwrap();
+
+        let value = storage.load_u8(address0).unwrap();
+        assert_eq!(value, 0xf1);
+
+        // Overwrite
+        block_on(storage.save(address0, Value::U8(0x1f))).unwrap();
+        let value = storage.load_u8(address0).unwrap();
+        assert_eq!(value, 0x1f);
+
+        // Save another u8 to the next.
+        block_on(storage.save(address0 + 1, Value::U8(0xca))).unwrap();
+        let value0 = storage.load_u8(address0).unwrap();
+        assert_eq!(value0, 0x1f);
+        let value1 = storage.load_u8(address0 + 1).unwrap();
+        assert_eq!(value1, 0xca);
+
+        // Write and read 16 U8 items next to it
+        for i in 0..16 {
+            let address = address0 + 2 + i;
+            let value = (i * 10) as u8;
+            block_on(storage.save(address, Value::U8(value))).unwrap();
+        }
+        // verify written data
+        // u8_verify_final(&mut storage, address0);
+        let value0 = storage.load_u8(address0).unwrap();
+        assert_eq!(value0, 0x1f);
+        let value1 = storage.load_u8(address0 + 1).unwrap();
+        assert_eq!(value1, 0xca);
+        for i in 0..16 {
+            let address = address0 + 2 + i;
+            let value = storage.load_u8(address).unwrap();
+            assert_eq!(value, (i * 10) as u8);
+        }
+    }
+
+    // rebuild storage and verify again
+    {
+        let mut storage = build_storage(flash);
+        // u8_verify_final(&mut storage, address0);
+        let value0 = storage.load_u8(address0).unwrap();
+        assert_eq!(value0, 0x1f);
+        let value1 = storage.load_u8(address0 + 1).unwrap();
+        assert_eq!(value1, 0xca);
+        for i in 0..16 {
+            let address = address0 + 2 + i;
+            let value = storage.load_u8(address).unwrap();
+            assert_eq!(value, (i * 10) as u8);
+        }
+    }
+}
+
+fn u8_verify_final<'a>(storage: &'a mut Storage, address0: u16) {
+    let value0 = storage.load_u8(address0).unwrap();
+    assert_eq!(value0, 0x1f);
+    let value1 = storage.load_u8(address0 + 1).unwrap();
+    assert_eq!(value1, 0xca);
+    for i in 0..16 {
+        let address = address0 + i;
+        let value = storage.load_u8(address).unwrap();
+        assert_eq!(value, (i * 10) as u8);
+    }
+}
+
+#[cfg(test)]
 #[defmt_test::tests]
 mod tests {
-    use defmt::{assert, info};
     // use defmt::*;
-    use crate::async_task;
-    use analog3::storage::Storage;
-    use embassy_executor::{Executor, Spawner};
-    use embassy_futures::block_on;
-    use embassy_stm32::{Peripherals, bind_interrupts, interrupt};
+    use embassy_stm32::bind_interrupts;
     use embassy_stm32::{
-        flash::{self, Flash, InterruptHandler},
+        flash::{self, Flash},
         init,
     };
-    use embedded_storage::nor_flash::ReadNorFlash;
-    use static_cell::StaticCell;
 
     bind_interrupts!(struct FlashIrqs {
         FLASH => flash::InterruptHandler;
     });
-
-    #[test]
-    fn it_works() {
-        assert!(true);
-    }
 
     #[test]
     fn storage() {
@@ -58,62 +143,16 @@ mod tests {
         // Create flash driver (blocking mode)
         let mut flash = Flash::new(p.FLASH, FlashIrqs);
 
-        let result = block_on(Storage::init(flash));
-        let Ok(mut _storage) = result else {
-            panic!("failed to initialize");
-        };
+        crate::u8_read_write(&mut flash);
+
+        /*
+        match storage.load_text(0x10) {
+            Ok(text) => {
+                info!("{}", text.as_str());
+            }
+            Err(e) => {
+                panic!("error: {:?}", e);
+            }
+        }*/
     }
-
-    /*
-    // Adjust depending on your chip flash layout
-    const TEST_ADDR: u32 = 0x0800_0000; // start of flash
-    const TEST_OFFSET: u32 = 0;
-    const LEN: usize = 16;
-
-    #[test]
-    fn read_flash() {
-        // Initialize MCU peripherals
-        let p = init(Default::default());
-
-        // Create flash driver (blocking mode)
-        let mut flash = Flash::new_blocking(p.FLASH);
-
-        let mut buf = [0u8; LEN];
-
-        // Read flash
-        flash.read(TEST_OFFSET, &mut buf).unwrap();
-
-        info!("Flash data: {:x}", buf);
-
-        // Basic sanity check: not all 0xFF (erased) or all 0x00
-        let all_ff = buf.iter().all(|&b| b == 0xFF);
-        let all_zero = buf.iter().all(|&b| b == 0x00);
-
-        assert!(!(all_ff && all_zero));
-    }
-    */
-
-    /*
-    #[test]
-    fn test_async() {
-        let p = init(Default::default());
-
-        static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-        let executor = EXECUTOR.init(Executor::new());
-
-        let flash = Flash::new_blocking(p.FLASH);
-
-        executor.run(|spawner| {
-            spawner.spawn(async_task(flash).unwrap());
-        });
-    }
-    */
-
-    /*
-    #[test]
-    fn test_async_return() {
-        let result = block_on(crate::read_something());
-        assert_eq!(result, 42);
-    }
-    */
 }

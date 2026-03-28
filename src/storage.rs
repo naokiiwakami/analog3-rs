@@ -11,8 +11,8 @@ const NUM_ROWS: usize = PAGE_SIZE / WRITE_SIZE - 1;
 // FLASH_SIZE is determined by the Embassy HAL so that the pages are guaranteed to locate
 // at the tail of available flash memory. But we still need to avoid carefully having
 // the pages conflict with the program code.
-const PAGE_0: u32 = (FLASH_SIZE - 2 * PAGE_SIZE) as u32;
-const PAGE_1: u32 = (FLASH_SIZE - PAGE_SIZE) as u32;
+pub const PAGE_0: u32 = (FLASH_SIZE - 2 * PAGE_SIZE) as u32;
+pub const PAGE_1: u32 = (FLASH_SIZE - PAGE_SIZE) as u32;
 const METADATA_OFFSET: u32 = (PAGE_SIZE - WRITE_SIZE) as u32; // the last row of the page
 const NULL_SEQ_NUMBER: u16 = u16::MAX;
 const LAST_SEQ_NUMBER: u16 = u16::MAX - 1;
@@ -126,27 +126,27 @@ enum StorageRequest {
 }
 
 #[embassy_executor::task]
-async fn run_storage(flash: Flash<'static>) {
-    let mut storage = Storage::init(flash).await.unwrap();
+async fn run_storage(mut flash: Flash<'static>) {
+    let mut storage = Storage::init(&mut flash).await.unwrap();
     storage.run().await;
 }
 
 #[non_exhaustive]
-pub struct Storage {
-    flash: Flash<'static>,
+pub struct Storage<'a> {
+    flash: &'a mut Flash<'static>,
 
     // page specifiers
     page_offset: u32,
     sequence_number: u16,
 }
 
-impl Storage {
-    pub async fn init(mut flash: Flash<'static>) -> Result<Self, Error> {
+impl<'a> Storage<'a> {
+    pub async fn init(flash: &'a mut Flash<'static>) -> Result<Self, Error> {
         let (page_offset, sequence_number) = {
             let offset0 = PAGE_0 + METADATA_OFFSET;
             let offset1 = PAGE_1 + METADATA_OFFSET;
-            let seq0 = Self::read16(&mut flash, offset0)?;
-            let seq1 = Self::read16(&mut flash, offset1)?;
+            let seq0 = Self::read16(flash, offset0)?;
+            let seq1 = Self::read16(flash, offset1)?;
             if Self::is_page_0(seq0, seq1) {
                 let seq = {
                     if seq0 == NULL_SEQ_NUMBER {
@@ -157,7 +157,7 @@ impl Storage {
                             (PAGE_0 + METADATA_OFFSET) / WRITE_SIZE as u32 * WRITE_SIZE as u32;
                         flash.write(offset, &row).await.unwrap();
                         // verify
-                        let seq0_written = Self::read16(&mut flash, offset0)?;
+                        let seq0_written = Self::read16(flash, offset0)?;
                         if seq0_written != 0 {
                             panic!("failed to write the initial sequence number");
                         }
@@ -166,10 +166,10 @@ impl Storage {
                         seq0
                     }
                 };
-                debug!("last page identified, page 0, seq={}", seq0);
+                debug!("last page identified, page 0, seq={}", seq);
                 (PAGE_0, seq)
             } else {
-                debug!("last page identified, page 1, seq={}", seq0);
+                debug!("last page identified, page 1, seq={}", seq1);
                 (PAGE_1, seq1)
             }
         };
@@ -198,8 +198,8 @@ impl Storage {
                     value,
                     reply,
                 } => {
-                    self.save(address, value).await.unwrap();
-                    reply.signal(Ok(Value::U8(0)));
+                    let result = self.save(address, value).await.map(|_| Value::U8(0));
+                    reply.signal(result);
                 }
             };
         }
@@ -217,7 +217,7 @@ impl Storage {
         }
     }
 
-    fn load_u8(&mut self, address: u16) -> Result<u8, Error> {
+    pub fn load_u8(&mut self, address: u16) -> Result<u8, Error> {
         Self::read8(&mut self.flash, self.page_offset + address as u32)
     }
 
@@ -230,8 +230,10 @@ impl Storage {
     }
 
     pub fn load_text(&mut self, address: u16) -> Result<String<A3_MAX_PROP_DATA_SIZE>, Error> {
+        debug!("reading text at {:#x}", address);
         let len = self.load_u8(address)?;
-        if len == u8::MAX {
+        debug!("length={}", len);
+        if len >= A3_MAX_PROP_DATA_SIZE as u8 {
             return Ok(String::new());
         }
         let mut data = [0u8; A3_MAX_PROP_DATA_SIZE + 1];
@@ -309,7 +311,7 @@ impl Storage {
         Ok(u64::from_le_bytes(data))
     }
 
-    async fn save(&mut self, address: u16, value: Value) -> Result<(), Error> {
+    pub async fn save(&mut self, address: u16, value: Value) -> Result<(), Error> {
         match value {
             Value::U8(data) => self.save_u8(address, data).await,
             Value::U16(data) => self.save_u16(address, data).await,
@@ -413,6 +415,7 @@ impl Storage {
                 buf[..data_width].copy_from_slice(&data[position..position + data_width]);
                 self.flash.write(page_offset, &buf).await?;
                 page_offset += WRITE_SIZE as u32;
+                position += data_width;
             }
         }
         Ok(())
