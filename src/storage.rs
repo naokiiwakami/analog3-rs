@@ -13,9 +13,9 @@ const NUM_ROWS: usize = PAGE_SIZE / WRITE_SIZE - 1;
 // the pages conflict with the program code.
 pub const PAGE_0: u32 = (FLASH_SIZE - 2 * PAGE_SIZE) as u32;
 pub const PAGE_1: u32 = (FLASH_SIZE - PAGE_SIZE) as u32;
-const METADATA_OFFSET: u32 = (PAGE_SIZE - WRITE_SIZE) as u32; // the last row of the page
-const NULL_SEQ_NUMBER: u16 = u16::MAX;
-const LAST_SEQ_NUMBER: u16 = u16::MAX - 1;
+pub const METADATA_OFFSET: u32 = (PAGE_SIZE - WRITE_SIZE) as u32; // the last row of the page
+pub const NULL_SEQ_NUMBER: u16 = u16::MAX;
+pub const LAST_SEQ_NUMBER: u16 = u16::MAX - 1;
 
 static CHANNEL_STORAGE: Channel<ThreadModeRawMutex, StorageRequest, 2> = Channel::new();
 
@@ -147,6 +147,7 @@ impl<'a> Storage<'a> {
             let offset1 = PAGE_1 + METADATA_OFFSET;
             let seq0 = Self::read16(flash, offset0)?;
             let seq1 = Self::read16(flash, offset1)?;
+            debug!("seq0={:#x}, seq1={:#x}", seq0, seq1);
             if Self::is_page_0(seq0, seq1) {
                 let seq = {
                     if seq0 == NULL_SEQ_NUMBER {
