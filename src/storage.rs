@@ -400,23 +400,17 @@ impl<'a> Storage<'a> {
         } else {
             trace!("the rows are clean, starting straight write");
             let mut position = 0usize;
-            let start_column = address as usize % WRITE_SIZE;
+            let mut start_column = address as usize % WRITE_SIZE;
             let mut page_offset = start_page_offset;
-            if start_column > 0 {
-                let mut buf = [0xffu8; WRITE_SIZE];
-                let data_width = data.len().min(WRITE_SIZE - start_column);
-                buf[start_column..start_column + data_width].copy_from_slice(&data[..data_width]);
-                self.flash.write(page_offset, &buf).await?;
-                page_offset += WRITE_SIZE as u32;
-                position += data_width;
-            }
             while position < data.len() {
                 let mut buf = [0xffu8; WRITE_SIZE];
-                let data_width = (data.len() - position).min(WRITE_SIZE);
-                buf[..data_width].copy_from_slice(&data[position..position + data_width]);
+                let data_width = (data.len() - position).min(WRITE_SIZE - start_column);
+                buf[start_column..start_column + data_width]
+                    .copy_from_slice(&data[position..position + data_width]);
                 self.flash.write(page_offset, &buf).await?;
                 page_offset += WRITE_SIZE as u32;
                 position += data_width;
+                start_column = 0;
             }
         }
         Ok(())
@@ -445,13 +439,10 @@ impl<'a> Storage<'a> {
             start_row_index, end_row_index
         );
 
-        let start_column = address as usize % WRITE_SIZE;
-        let end_column = (address as usize + data.len()) % WRITE_SIZE;
-        trace!("start column={}, end column={}", start_column, end_column);
-
         // let target_row_offset = self.get_row_offset(address);
         let mut row_data = [0xffu8; WRITE_SIZE];
         let mut position = 0;
+        let mut start_column = address as usize % WRITE_SIZE;
         for irow in 0..NUM_ROWS {
             let src_row_offset = prev_page_offset + (irow * WRITE_SIZE) as u32;
             let dst_row_offset = self.page_offset + (irow * WRITE_SIZE) as u32;
@@ -461,19 +452,11 @@ impl<'a> Storage<'a> {
 
             // Merge data if the target rows overlap
             if start_row_index <= irow && irow <= end_row_index {
-                if irow == start_row_index && start_column > 0 {
-                    let data_width = data.len().min(WRITE_SIZE - start_column);
-                    row_data[start_column..start_column + data_width]
-                        .copy_from_slice(&data[..data_width]);
-                    position += data_width;
-                } else if irow == end_row_index && end_column > 0 {
-                    let data_width = end_column.min(data.len() - position);
-                    row_data[..data_width].copy_from_slice(&data[data.len() - data_width..]);
-                } else {
-                    trace!("irow={}, index={}", irow, position);
-                    row_data.copy_from_slice(&data[position..position + WRITE_SIZE]);
-                    position += WRITE_SIZE;
-                }
+                let data_width = (data.len() - position).min(WRITE_SIZE - start_column);
+                row_data[start_column..start_column + data_width]
+                    .copy_from_slice(&data[position..position + data_width]);
+                position += data_width;
+                start_column = 0;
             }
 
             if u64::from_le_bytes(row_data) != u64::MAX {
