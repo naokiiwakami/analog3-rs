@@ -31,22 +31,27 @@ pub struct Rng<S: RngState> {
 }
 
 impl<S: RngState> Rng<S> {
+    #[inline]
     pub fn random_u64(&self) -> u64 {
         self.next_state()
     }
 
+    #[inline]
     pub fn random_u32(&self) -> u32 {
         self.next_state() as u32
     }
 
+    #[inline]
     pub fn random_u16(&self) -> u16 {
         (self.next_state() > 16) as u16
     }
 
+    #[inline]
     pub fn random_u8(&self) -> u8 {
         (self.next_state() >> 24) as u8
     }
 
+    #[inline]
     pub fn random_range(&self, max: u32) -> u32 {
         if max == 0 {
             return 0;
@@ -54,6 +59,7 @@ impl<S: RngState> Rng<S> {
         self.random_u32() % max
     }
 
+    #[inline]
     pub fn random_f32(&self) -> f32 {
         (self.random_u32() as f32) / (u32::MAX as f32)
     }
