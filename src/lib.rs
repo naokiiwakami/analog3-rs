@@ -4,6 +4,7 @@ pub mod can;
 pub mod definitions;
 mod indicator;
 pub mod property;
+pub mod rng;
 pub mod storage;
 
 use can::{CAN_REQUEST_CHANNEL_SIZE, CAN_RX_CHANNEL_SIZE, can_handler};
