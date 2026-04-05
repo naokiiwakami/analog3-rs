@@ -26,7 +26,7 @@ use embassy_sync::{
 use embassy_time::Timer;
 use embedded_can::Id;
 use heapless::{String, Vec};
-use indicator::{
+pub use indicator::{
     INDICATOR_CHANNEL_SIZE, IndicatorRequest, get_indicator_request_sender, run_indicator,
 };
 
@@ -102,12 +102,18 @@ pub async fn diagnose(done: &'static Signal<ThreadModeRawMutex, ()>) {
     done.wait().await;
 }
 
+pub async fn start_operation() {
+    let sender = CHANNEL_A3_REQUEST.sender();
+    sender.send(Analog3Request::StartOperation).await;
+}
+
 #[embassy_executor::task]
 async fn run_analog3(mut analog3: Analog3) {
     analog3.run().await;
 }
 
-enum Analog3Request {
+pub enum Analog3Request {
+    StartOperation,
     TerminateStream {
         wire_id: u16,
     },
@@ -157,6 +163,15 @@ impl Analog3 {
 
     async fn run(&mut self) {
         let req_receiver = CHANNEL_A3_REQUEST.receiver();
+
+        // block waiting here until the application sends a go
+        loop {
+            let request = req_receiver.receive().await;
+            if matches!(request, Analog3Request::StartOperation) {
+                break;
+            }
+        }
+
         self.indicator_req_sender
             .send(IndicatorRequest::SetRedLed)
             .await;
@@ -200,6 +215,7 @@ impl Analog3 {
                 self.diagnose().await;
                 done.signal(());
             }
+            Analog3Request::StartOperation => {}
         };
     }
 

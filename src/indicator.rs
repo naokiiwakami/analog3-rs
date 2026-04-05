@@ -8,7 +8,7 @@ static INDICATOR_CHANNEL: Channel<ThreadModeRawMutex, IndicatorRequest, INDICATO
     Channel::new();
 
 pub fn get_indicator_request_sender()
--> channel::Sender<'static, ThreadModeRawMutex, IndicatorRequest, 4> {
+-> channel::Sender<'static, ThreadModeRawMutex, IndicatorRequest, INDICATOR_CHANNEL_SIZE> {
     INDICATOR_CHANNEL.sender()
 }
 

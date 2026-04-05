@@ -7,7 +7,6 @@
 
 use core::cell::RefCell;
 use cortex_m::interrupt::{self, Mutex};
-use defmt::debug;
 
 static RNG_STATE: Mutex<RefCell<u64>> = Mutex::new(RefCell::new(0));
 
@@ -134,7 +133,7 @@ impl RngState for LocalGenerator {
 pub type LocalRng = Rng<LocalGenerator>;
 
 /// Create a new local RNG seeded from the global RNG.
-pub fn local_rng() -> LocalRng {
+pub fn make_local_rng() -> LocalRng {
     Rng {
         generator: LocalGenerator::new(),
     }
