@@ -10,7 +10,7 @@ pub mod storage;
 use can::{CAN_REQUEST_CHANNEL_SIZE, CAN_RX_CHANNEL_SIZE, can_handler};
 use core::cmp::min;
 use definitions::*;
-use defmt::debug;
+use defmt::{debug, trace};
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
 use embassy_stm32::{
@@ -513,7 +513,7 @@ impl<'a> TxStream<'a> {
         if self.index == 0 {
             return;
         }
-        debug!("throttling");
+        trace!("throttling");
         // TODO: put timeout
         // just wait without reading the content, the peer would send empty frames
         SIGNAL_WIRE.wait().await;
@@ -525,7 +525,7 @@ impl<'a> TxStream<'a> {
             return;
         }
         let request = make_tx_std_request(self.wire_id, &self.payload[..self.index]);
-        debug!("sending");
+        trace!("sending");
         self.can_req_sender.send(request).await;
         self.clear_payload();
     }
