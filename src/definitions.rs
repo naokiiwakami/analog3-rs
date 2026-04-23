@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use defmt;
 use embassy_stm32::can::frame::FdFrame;
 use embedded_can::{Frame, Id};
 use heapless::{String, Vec};
@@ -114,8 +115,22 @@ pub enum Value {
     VectorU16(Vec<u16, MAX_PROP_VECTOR_LENGTH>),
 }
 
+impl Value {
+    pub fn get_type(&self) -> ValueType {
+        match self {
+            Self::U8(_) => ValueType::U8,
+            Self::U16(_) => ValueType::U16,
+            Self::U32(_) => ValueType::U32,
+            Self::Text(_) => ValueType::Text,
+            Self::Boolean(_) => ValueType::Boolean,
+            Self::VectorU8(_) => ValueType::VectorU8,
+            Self::VectorU16(_) => ValueType::VectorU16,
+        }
+    }
+}
+
 #[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, defmt::Format)]
 pub enum ValueType {
     U8,
     U16,
