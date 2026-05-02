@@ -2,7 +2,38 @@ use defmt::{debug, trace};
 use embassy_executor::Spawner;
 use embassy_stm32::flash::{Error, FLASH_SIZE, Flash, WRITE_SIZE};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel, signal::Signal};
+#[cfg(feature = "stm32c092kc")]
+use embedded_storage::nor_flash::NorFlash;
 use heapless::{String, Vec};
+
+#[cfg(feature = "stm32g0b1ce")]
+type FlashType = Flash<'static, embassy_stm32::flash::Async>;
+#[cfg(feature = "stm32c092kc")]
+type FlashType = Flash<'static, embassy_stm32::flash::Blocking>;
+
+async fn flash_write(flash: &mut FlashType, offset: u32, buf: &[u8]) -> Result<(), Error> {
+    #[cfg(feature = "stm32g0b1ce")]
+    {
+        flash.write(offset, buf).await
+    }
+    #[cfg(feature = "stm32c092kc")]
+    {
+        flash.write(offset, buf)?;
+        Ok(())
+    }
+}
+
+async fn flash_erase(flash: &mut FlashType, start: u32, end: u32) -> Result<(), Error> {
+    #[cfg(feature = "stm32g0b1ce")]
+    {
+        flash.erase(start, end).await
+    }
+    #[cfg(feature = "stm32c092kc")]
+    {
+        flash.erase(start, end)?;
+        Ok(())
+    }
+}
 
 use super::definitions::{A3_MAX_PROP_DATA_SIZE, MAX_PROP_VECTOR_LENGTH, Value, ValueType};
 
@@ -19,7 +50,7 @@ pub const LAST_SEQ_NUMBER: u16 = u16::MAX - 1;
 
 static CHANNEL_STORAGE: Channel<ThreadModeRawMutex, StorageRequest, 2> = Channel::new();
 
-pub async fn start(spawner: Spawner, flash: Flash<'static>) {
+pub async fn start(spawner: Spawner, flash: FlashType) {
     spawner.spawn(run_storage(flash).unwrap());
 }
 
@@ -126,14 +157,14 @@ enum StorageRequest {
 }
 
 #[embassy_executor::task]
-async fn run_storage(mut flash: Flash<'static>) {
+async fn run_storage(mut flash: FlashType) {
     let mut storage = Storage::init(&mut flash).await.unwrap();
     storage.run().await;
 }
 
 #[non_exhaustive]
 pub struct Storage<'a> {
-    flash: &'a mut Flash<'static>,
+    flash: &'a mut FlashType,
 
     // page specifiers
     page_offset: u32,
@@ -141,7 +172,15 @@ pub struct Storage<'a> {
 }
 
 impl<'a> Storage<'a> {
-    pub async fn init(flash: &'a mut Flash<'static>) -> Result<Self, Error> {
+    async fn flash_write(&mut self, offset: u32, buf: &[u8]) -> Result<(), Error> {
+        flash_write(&mut self.flash, offset, buf).await
+    }
+
+    async fn flash_erase(&mut self, start: u32, end: u32) -> Result<(), Error> {
+        flash_erase(&mut self.flash, start, end).await
+    }
+
+    pub async fn init(flash: &'a mut FlashType) -> Result<Self, Error> {
         let (page_offset, sequence_number) = {
             let offset0 = PAGE_0 + METADATA_OFFSET;
             let offset1 = PAGE_1 + METADATA_OFFSET;
@@ -156,7 +195,7 @@ impl<'a> Storage<'a> {
                         row[..2].copy_from_slice(&0u16.to_le_bytes());
                         let offset =
                             (PAGE_0 + METADATA_OFFSET) / WRITE_SIZE as u32 * WRITE_SIZE as u32;
-                        flash.write(offset, &row).await.unwrap();
+                        flash_write(flash, offset, &row).await.unwrap();
                         // verify
                         let seq0_written = Self::read16(flash, offset0)?;
                         if seq0_written != 0 {
@@ -288,25 +327,25 @@ impl<'a> Storage<'a> {
         Ok(vec)
     }
 
-    fn read8(flash: &mut Flash<'static>, offset: u32) -> Result<u8, Error> {
+    fn read8(flash: &mut FlashType, offset: u32) -> Result<u8, Error> {
         let mut data = [0u8; 1];
         flash.blocking_read(offset, &mut data)?;
         Ok(u8::from_le_bytes(data))
     }
 
-    fn read16(flash: &mut Flash<'static>, offset: u32) -> Result<u16, Error> {
+    fn read16(flash: &mut FlashType, offset: u32) -> Result<u16, Error> {
         let mut data = [0u8; 2];
         flash.blocking_read(offset, &mut data)?;
         Ok(u16::from_le_bytes(data))
     }
 
-    fn read32(flash: &mut Flash<'static>, offset: u32) -> Result<u32, Error> {
+    fn read32(flash: &mut FlashType, offset: u32) -> Result<u32, Error> {
         let mut data = [0u8; 4];
         flash.blocking_read(offset, &mut data)?;
         Ok(u32::from_le_bytes(data))
     }
 
-    fn read64(flash: &mut Flash<'static>, offset: u32) -> Result<u64, Error> {
+    fn read64(flash: &mut FlashType, offset: u32) -> Result<u64, Error> {
         let mut data = [0u8; 8];
         flash.blocking_read(offset, &mut data)?;
         Ok(u64::from_le_bytes(data))
@@ -407,7 +446,7 @@ impl<'a> Storage<'a> {
                 let data_width = (data.len() - position).min(WRITE_SIZE - start_column);
                 buf[start_column..start_column + data_width]
                     .copy_from_slice(&data[position..position + data_width]);
-                self.flash.write(page_offset, &buf).await?;
+                self.flash_write(page_offset, &buf).await?;
                 page_offset += WRITE_SIZE as u32;
                 position += data_width;
                 start_column = 0;
@@ -460,7 +499,7 @@ impl<'a> Storage<'a> {
             }
 
             if u64::from_le_bytes(row_data) != u64::MAX {
-                self.flash.write(dst_row_offset, &row_data).await?;
+                self.flash_write(dst_row_offset, &row_data).await?;
             }
         }
         Ok(())
@@ -474,7 +513,7 @@ impl<'a> Storage<'a> {
     ) -> Result<(), Error> {
         let row_offset: u32 = self.get_row_offset(address);
         let buf = Self::merge_into_int(data, original_row, address);
-        self.flash.write(row_offset, &buf).await
+        self.flash_write(row_offset, &buf).await
     }
 
     async fn switch_pages(&mut self) -> Result<u32, Error> {
@@ -505,8 +544,7 @@ impl<'a> Storage<'a> {
     }
 
     async fn erase_current_page(&mut self) -> Result<(), Error> {
-        self.flash
-            .erase(self.page_offset, self.page_offset + PAGE_SIZE as u32)
+        self.flash_erase(self.page_offset, self.page_offset + PAGE_SIZE as u32)
             .await
     }
 

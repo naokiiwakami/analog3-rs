@@ -973,7 +973,6 @@ version = "21.0.0"
 source = "git+https://github.com/embassy-rs/stm32-data-generated?tag=stm32-data-10af491da4af2cf36f885e8a244139ddb97296c4#f4a6d7f10ba1e2681ab8d004138c8d836a264d92"
 dependencies = [
  "cortex-m",
- "cortex-m-rt",
  "defmt 0.3.100",
 ]
 

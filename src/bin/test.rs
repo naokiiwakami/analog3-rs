@@ -5,6 +5,8 @@ use analog3::{
     definitions::Value,
     storage::{LAST_SEQ_NUMBER, METADATA_OFFSET, PAGE_0, PAGE_1, PAGE_SIZE, Storage},
 };
+use cortex_m::asm;
+use cortex_m_rt::entry;
 use defmt::{assert_eq, info};
 use defmt_rtt as _;
 use defmt_test as _;
@@ -13,6 +15,15 @@ use embassy_stm32 as _;
 use embassy_stm32::flash::Flash;
 use heapless::String;
 use panic_probe as _;
+
+#[cfg(not(test))]
+#[entry]
+fn main() -> ! {
+    info!("hw-test binary started");
+    loop {
+        asm::wfi();
+    }
+}
 
 /// Clear all storage areas in the flash memory
 fn factory_reset<'a>(flash: &'a mut Flash<'static>) {

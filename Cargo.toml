@@ -6,10 +6,9 @@ license = "MIT"
 publish = false
 
 [dependencies]
-embassy-stm32 = { git = "https://github.com/embassy-rs/embassy.git", rev = "26ad6ec71de3d55e5cbc04a72d7174185f3e86ab", features = [
+embassy-stm32 = { git = "https://github.com/embassy-rs/embassy.git", rev = "26ad6ec71de3d55e5cbc04a72d7174185f3e86ab", default-features = false, features = [
   "defmt",
   "time-driver-any",
-  "stm32g0b1ce",
   "memory-x",
   "unstable-pac",
   "exti",
@@ -52,10 +51,16 @@ build = [{ target = "thumbv6m-none-eabi", artifact-dir = "out" }]
 
 [features]
 default = []
+# Select the MCU when building this crate.
+stm32c092kc = ["embassy-stm32/stm32c092kc"]
+stm32g0b1ce = ["embassy-stm32/stm32g0b1ce"]
 # optionally enables bit rate switching in CAN tx
 bit-rate-switching = []
-test = []
+# Local hw-test binary target for the STM32G0B1CE probe.
+test = ["stm32g0b1ce"]
 
+# Local hw-test binary target for the STM32G0B1CE probe.
+# To run tests on device: cargo test --features test --target thumbv6m-none-eabi
 [[bin]]
 name = "hw-test"
 path = "src/bin/test.rs"

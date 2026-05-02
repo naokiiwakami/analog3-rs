@@ -172,9 +172,11 @@ impl Analog3 {
             }
         }
 
+        debug!("analog3: Starting operation");
         self.indicator_req_sender
             .send(IndicatorRequest::SetRedLed)
             .await;
+        debug!("Sending sign-in");
         self.sign_in().await;
         loop {
             match select(self.rx_receiver.receive(), req_receiver.receive()).await {
@@ -376,7 +378,7 @@ impl Analog3 {
     fn handle_request_name(&mut self, data: &[u8]) {
         if data.len() < 3 {
             // it's a protocol error if the data  is missing the wire_num field.
-            // ignore the message silengly in the case
+            // ignore the message silently in the case
             return;
         }
         let wire_num = data[2];
@@ -396,7 +398,7 @@ impl Analog3 {
     fn handle_request_config(&mut self, data: &[u8]) {
         if data.len() < 3 {
             // it's a protocol error if the wire number  is missing in the data.
-            // ignore the message silengly in the case
+            // ignore the message silently in the case
             return;
         }
         let wire_num = data[2];
@@ -419,7 +421,7 @@ impl Analog3 {
     fn handle_modify_config(&mut self, data: &[u8]) {
         if data.len() < 3 {
             // it's a protocol error if the wire number  is missing in the data.
-            // ignore the message silengly in the case
+            // ignore the message silently in the case
             return;
         }
         let wire_num = data[2];
