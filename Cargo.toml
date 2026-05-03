@@ -50,7 +50,7 @@ lto = true
 build = [{ target = "thumbv6m-none-eabi", artifact-dir = "out" }]
 
 [features]
-default = []
+default = ["stm32c092kc"]
 # Select the MCU when building this crate.
 stm32c092kc = ["embassy-stm32/stm32c092kc"]
 stm32g0b1ce = ["embassy-stm32/stm32g0b1ce"]

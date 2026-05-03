@@ -6,6 +6,7 @@ mod indicator;
 pub mod property;
 pub mod rng;
 pub mod storage;
+pub mod utils;
 
 use can::{CAN_REQUEST_CHANNEL_SIZE, CAN_RX_CHANNEL_SIZE, can_handler};
 use core::cmp::min;
