@@ -3,6 +3,7 @@ pub mod addresses_common;
 pub mod can;
 pub mod definitions;
 mod indicator;
+pub mod mcp47x6;
 pub mod property;
 pub mod rng;
 pub mod storage;
@@ -545,6 +546,18 @@ impl<'a> TxStream<'a> {
                 self.put_data(&value.to_be_bytes()).await;
             }
             Value::U32(value) => {
+                self.put_data(&[prop_id, size_of_val(&value) as u8]).await;
+                self.put_data(&value.to_be_bytes()).await;
+            }
+            Value::I8(value) => {
+                self.put_data(&[prop_id, size_of_val(&value) as u8]).await;
+                self.put_data(&value.to_be_bytes()).await;
+            }
+            Value::I16(value) => {
+                self.put_data(&[prop_id, size_of_val(&value) as u8]).await;
+                self.put_data(&value.to_be_bytes()).await;
+            }
+            Value::I32(value) => {
                 self.put_data(&[prop_id, size_of_val(&value) as u8]).await;
                 self.put_data(&value.to_be_bytes()).await;
             }

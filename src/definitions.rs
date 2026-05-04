@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use core::convert::TryFrom;
 use defmt;
 use embassy_stm32::can::frame::FdFrame;
 use embedded_can::{Frame, Id};
@@ -109,6 +110,9 @@ pub enum Value {
     U8(u8),
     U16(u16),
     U32(u32),
+    I8(i8),
+    I16(i16),
+    I32(i32),
     Text(String<A3_MAX_PROP_DATA_SIZE>),
     Boolean(bool),
     VectorU8(Vec<u8, MAX_PROP_VECTOR_LENGTH>),
@@ -121,6 +125,9 @@ impl Value {
             Self::U8(_) => ValueType::U8,
             Self::U16(_) => ValueType::U16,
             Self::U32(_) => ValueType::U32,
+            Self::I8(_) => ValueType::I8,
+            Self::I16(_) => ValueType::I16,
+            Self::I32(_) => ValueType::I32,
             Self::Text(_) => ValueType::Text,
             Self::Boolean(_) => ValueType::Boolean,
             Self::VectorU8(_) => ValueType::VectorU8,
@@ -129,12 +136,35 @@ impl Value {
     }
 }
 
+impl TryFrom<&[u8]> for Value {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut vec = Vec::<u8, MAX_PROP_VECTOR_LENGTH>::new();
+        vec.extend_from_slice(&value).unwrap();
+        Ok(Self::VectorU8(vec))
+    }
+}
+
+impl TryFrom<&[u16]> for Value {
+    type Error = ();
+
+    fn try_from(value: &[u16]) -> Result<Self, Self::Error> {
+        let mut vec = Vec::<u16, MAX_PROP_VECTOR_LENGTH>::new();
+        vec.extend_from_slice(&value).unwrap();
+        Ok(Self::VectorU16(vec))
+    }
+}
+
 #[allow(unused)]
-#[derive(Debug, Clone, defmt::Format)]
+#[derive(Debug, Clone, defmt::Format, PartialEq)]
 pub enum ValueType {
     U8,
     U16,
     U32,
+    I8,
+    I16,
+    I32,
     VectorU8,
     VectorU16,
     Text,
